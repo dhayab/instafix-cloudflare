@@ -32,12 +32,17 @@ export interface BRResult {
 
 /**
  * Extract a balanced JSON array literal `[...]` that follows `"key":` at the
- * first occurrence in the source. Handles nested brackets and string-escape
- * sequences so that brackets inside strings don't confuse the depth counter.
+ * first occurrence in the source at or after `startAt`. Handles nested
+ * brackets and string-escape sequences so that brackets inside strings don't
+ * confuse the depth counter.
  */
-function extractJSONArray(source: string, key: string): string | null {
+function extractJSONArray(
+  source: string,
+  key: string,
+  startAt = 0,
+): string | null {
   const needle = `"${key}":`;
-  const i = source.indexOf(needle);
+  const i = source.indexOf(needle, startAt);
   if (i < 0) return null;
   let start = i + needle.length;
   while (start < source.length && /\s/.test(source[start]!)) start++;
@@ -170,6 +175,22 @@ async function fetchRenderedHTML(
 }
 
 /**
+ * Anchor extraction to the requested post, since IG's SPA HTML embeds
+ * multiple posts' JSON (main + sidebar/suggested). Search for the post's own
+ * shortcode first; start the `carousel_media`/`video_versions` scan from that
+ * offset so we never grab a related post's array. Returns 0 if the shortcode
+ * isn't found, which falls back to whole-document first-match.
+ */
+function locatePostAnchor(source: string, postID: string): number {
+  const shortcodeAt = source.indexOf(`"shortcode":"${postID}"`);
+  const codeAt = source.indexOf(`"code":"${postID}"`);
+  if (shortcodeAt < 0 && codeAt < 0) return 0;
+  if (shortcodeAt < 0) return codeAt;
+  if (codeAt < 0) return shortcodeAt;
+  return Math.min(shortcodeAt, codeAt);
+}
+
+/**
  * Scrape the rendered HTML for full post media. Returns one Media entry per
  * carousel item (or a single entry for non-carousel posts). If parsing fails
  * or BR is unavailable, returns null so the caller can fall back to oembed.
@@ -182,7 +203,9 @@ export async function scrapeViaBrowser(
   const html = await fetchRenderedHTML(postID, kind, env);
   if (!html) return null;
 
-  const carouselText = extractJSONArray(html, 'carousel_media');
+  const anchor = locatePostAnchor(html, postID);
+
+  const carouselText = extractJSONArray(html, 'carousel_media', anchor);
   if (carouselText) {
     let items: CarouselItem[];
     try {
@@ -209,7 +232,7 @@ export async function scrapeViaBrowser(
     return { medias, width, height };
   }
 
-  const videoText = extractJSONArray(html, 'video_versions');
+  const videoText = extractJSONArray(html, 'video_versions', anchor);
   if (videoText) {
     let versions: VideoVersion[];
     try {
