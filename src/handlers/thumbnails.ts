@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { PhotonImage } from '@cf-wasm/photon';
-import type { Env } from '../env';
+import type { AppBindings } from '../index';
 import { getData } from '../scraper';
 import { drawPlayIcon } from '../grid/play-icon';
 
@@ -47,9 +47,10 @@ async function composePlayThumbnail(url: string): Promise<Uint8Array> {
  * gives users a visual cue that the preview still represents a video.
  */
 export async function thumbnailHandler(
-  c: Context<{ Bindings: Env }>,
+  c: Context<AppBindings>,
 ): Promise<Response> {
   const postID = c.req.param('postID') ?? '';
+  const reqId = c.get('reqId');
 
   const key = r2Key(postID);
   if (c.env.GRIDS) {
@@ -57,7 +58,7 @@ export async function thumbnailHandler(
     if (cached) return respondJpeg(await cached.arrayBuffer());
   }
 
-  const data = await getData(postID, 'p', c.env, c.executionCtx);
+  const data = await getData(postID, 'p', c.env, c.executionCtx, reqId);
   if (!data?.Thumbnail) return c.notFound();
 
   const existing = inflight.get(postID);
@@ -72,7 +73,6 @@ export async function thumbnailHandler(
   try {
     jpeg = await work;
   } catch {
-    // Fallback: redirect to the raw CDN thumbnail if compositing fails.
     return c.redirect(data.Thumbnail, 302);
   }
 

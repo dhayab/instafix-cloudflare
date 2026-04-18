@@ -1,5 +1,6 @@
 import type { Env } from '../env';
 import type { InstaData } from './types';
+import { log } from '../utils/log';
 import { scrapeFromOEmbed } from './oembed';
 import { scrapeViaBrowser } from './browser';
 
@@ -23,22 +24,49 @@ export async function getData(
   kind: PostKind,
   env: Env,
   ctx: ExecutionContext,
+  reqId: string,
 ): Promise<InstaData | null> {
   if (!VALID_PREFIX.test(postID)) {
     throw new Error('postID is not a valid Instagram post ID');
   }
 
+  const started = Date.now();
   const key = kvKey(postID, kind);
 
   if (env.POSTS_CACHE) {
     const cached = (await env.POSTS_CACHE.get(key, 'json')) as InstaData | null;
-    if (cached?.Medias?.length) return cached;
+    if (cached?.Medias?.length) {
+      log('scraper.done', reqId, 'info', env, {
+        postID,
+        kind,
+        source: 'cache',
+        coalesced: false,
+        mediaCount: cached.Medias.length,
+        hasOembed: false,
+        hasBr: false,
+        durationMs: Date.now() - started,
+      });
+      return cached;
+    }
   }
 
   const existing = inflight.get(key);
-  if (existing) return existing;
+  if (existing) {
+    const data = await existing;
+    log('scraper.done', reqId, 'info', env, {
+      postID,
+      kind,
+      source: 'scrape',
+      coalesced: true,
+      mediaCount: data?.Medias.length ?? 0,
+      hasOembed: false,
+      hasBr: false,
+      durationMs: Date.now() - started,
+    });
+    return data;
+  }
 
-  const p = scrape(postID, kind, env, ctx)
+  const p = scrape(postID, kind, env, ctx, reqId)
     .then(async (data) => {
       if (data?.Medias?.length && env.POSTS_CACHE) {
         ctx.waitUntil(
@@ -52,7 +80,18 @@ export async function getData(
     .finally(() => inflight.delete(key));
 
   inflight.set(key, p);
-  return p;
+  const data = await p;
+  log('scraper.done', reqId, 'info', env, {
+    postID,
+    kind,
+    source: 'scrape',
+    coalesced: false,
+    mediaCount: data?.Medias.length ?? 0,
+    hasOembed: Boolean(data?.Caption || data?.Thumbnail),
+    hasBr: Boolean(data && (data.Width || data.Height)),
+    durationMs: Date.now() - started,
+  });
+  return data;
 }
 
 /**
@@ -65,11 +104,12 @@ async function scrape(
   kind: PostKind,
   env: Env,
   ctx: ExecutionContext,
+  reqId: string,
 ): Promise<InstaData | null> {
   const normalized = normalizeKind(kind);
   const [oembed, br] = await Promise.all([
-    scrapeFromOEmbed(postID),
-    scrapeViaBrowser(postID, normalized, env, ctx),
+    scrapeFromOEmbed(postID, env, reqId),
+    scrapeViaBrowser(postID, normalized, env, ctx, reqId),
   ]);
 
   if (!oembed && !br) return null;

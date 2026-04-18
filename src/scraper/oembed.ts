@@ -1,3 +1,4 @@
+import type { Env } from '../env';
 import type { InstaData } from './types';
 
 const IG_APP_ID = '936619743392459';
@@ -17,6 +18,8 @@ interface OEmbedResponse {
 
 export async function scrapeFromOEmbed(
   postID: string,
+  _env: Env,
+  _reqId: string,
 ): Promise<InstaData | null> {
   const postURL = `https://www.instagram.com/p/${encodeURIComponent(postID)}/`;
   const url = `https://www.instagram.com/api/v1/oembed/?url=${encodeURIComponent(postURL)}`;

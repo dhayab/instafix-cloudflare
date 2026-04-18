@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { Env } from '../env';
+import type { AppBindings } from '../index';
 import { getData } from '../scraper';
 import { composeGrid, type GridInput } from '../grid/compose';
 
@@ -19,10 +19,9 @@ function respondJpeg(bytes: ArrayBuffer | Uint8Array): Response {
   });
 }
 
-export async function gridHandler(
-  c: Context<{ Bindings: Env }>,
-): Promise<Response> {
+export async function gridHandler(c: Context<AppBindings>): Promise<Response> {
   const postID = c.req.param('postID') ?? '';
+  const reqId = c.get('reqId');
 
   const key = r2Key(postID);
   if (c.env.GRIDS) {
@@ -30,7 +29,7 @@ export async function gridHandler(
     if (cached) return respondJpeg(await cached.arrayBuffer());
   }
 
-  const data = await getData(postID, 'p', c.env, c.executionCtx);
+  const data = await getData(postID, 'p', c.env, c.executionCtx, reqId);
   if (!data) return c.notFound();
 
   const imageItems: GridInput[] = data.Medias.filter((m) =>

@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { Env } from '../env';
+import type { AppBindings } from '../index';
 import { getData, type PostKind } from '../scraper';
 import { mediaIdToCode } from '../utils/shortcode';
 import { getSharePostID } from '../utils/share';
@@ -27,13 +27,11 @@ function kindFromPath(path: string): PostKind {
   return 'p';
 }
 
-function sendEmbed(c: Context, v: ViewsData): Response {
+function sendEmbed(c: Context<AppBindings>, v: ViewsData): Response {
   return c.html(renderEmbed(v));
 }
 
-export async function embedHandler(
-  c: Context<{ Bindings: Env }>,
-): Promise<Response> {
+export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
   const url = new URL(c.req.url);
   const urlPath = url.pathname;
   const mediaNumParam =
@@ -91,9 +89,10 @@ export async function embedHandler(
     return c.redirect(canonical, 302);
   }
 
+  const reqId = c.get('reqId');
   let data;
   try {
-    data = await getData(postID, kind, c.env, c.executionCtx);
+    data = await getData(postID, kind, c.env, c.executionCtx, reqId);
   } catch {
     return c.redirect(canonical, 302);
   }

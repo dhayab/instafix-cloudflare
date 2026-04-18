@@ -205,6 +205,7 @@ export async function scrapeViaBrowser(
   kind: 'reel' | 'tv' | 'p',
   env: Env,
   ctx: ExecutionContext,
+  _reqId: string,
 ): Promise<BRResult | null> {
   const html = await fetchRenderedHTML(postID, kind, env, ctx);
   if (!html) return null;
