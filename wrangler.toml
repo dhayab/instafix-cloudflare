@@ -3,6 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2026-04-18"
 compatibility_flags = ["nodejs_compat"]
 
+# Disable the auto-generated per-version preview URLs. Each version would
+# otherwise be reachable at a public `<version>-<worker>.<subdomain>.workers.dev`,
+# which widens the attack surface for a public-URL service with no benefit.
+preview_urls = false
+
 # Resource-name convention: all shared-namespace resources are prefixed
 # `instafix-`. The Worker-local binding name stays short.
 #
