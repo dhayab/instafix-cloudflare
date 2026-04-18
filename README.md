@@ -21,26 +21,34 @@ https://example-domain.workers.dev/p/DXPmUf9jf4l/
 
 See [docs/SPEC.md](docs/SPEC.md) for the full route contract, username-prefixed variants, and query switches.
 
-## Deploy with Wrangler
+## Deploy
+
+Infrastructure (KV namespace, R2 bucket) is managed by Terraform; the Worker code is shipped via Wrangler. `npm run deploy` wires them together: it reads `terraform output`, exports each value as an env var, and hands off to `wrangler deploy`.
+
+### One-time setup
 
 ```bash
 npm install
 
-# Create shared-namespace resources
-wrangler kv namespace create instafix-posts-cache
-wrangler r2 bucket create instafix-grids
+# 1. Terraform — provision KV + R2
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+# edit terraform/terraform.tfvars with your cloudflare_account_id and
+# a cloudflare_api_token scoped to Workers Scripts + KV + R2 Edit.
 
-# Replace the placeholder `id` on the POSTS_CACHE binding in wrangler.toml
-# with the KV namespace id printed above.
+cd terraform && terraform init && terraform apply && cd ..
 
-# Set Browser Rendering secrets
+# 2. Browser Rendering secrets (Worker runtime, not Terraform-managed)
 wrangler secret put CF_ACCOUNT_ID
 wrangler secret put CF_BROWSER_API_TOKEN   # scope: "Browser Rendering - Edit"
-
-wrangler deploy
 ```
 
-Both secrets are required for reels and carousels — without them, the scraper silently falls back to oembed-only, which can only resolve single-image posts. See [docs/SPEC.md](docs/SPEC.md#secrets) for details.
+`CF_BROWSER_API_TOKEN` is a separate, narrowly-scoped token from `CLOUDFLARE_API_TOKEN` — the former lives as a Worker runtime secret, the latter only on your machine for Terraform. Without them the scraper silently falls back to oembed-only, which can only resolve single-image posts. See [docs/SPEC.md](docs/SPEC.md#secrets) for details.
+
+### Subsequent deploys
+
+```bash
+npm run deploy
+```
 
 Point your domain at the Worker via the Cloudflare dashboard (Workers Routes or a custom domain). No additional DNS work is needed if you use a `*.workers.dev` subdomain.
 

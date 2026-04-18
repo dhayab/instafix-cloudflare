@@ -1,0 +1,7 @@
+# Copy this file to `terraform.tfvars` and fill in real values.
+# `terraform.tfvars` is gitignored.
+
+cloudflare_account_id = "0000000000000000000000000000000000"
+
+# Token scope: Workers Scripts + KV + R2 Edit.
+cloudflare_api_token = "your-terraform-token-here"

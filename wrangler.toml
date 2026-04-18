@@ -6,13 +6,13 @@ compatibility_flags = ["nodejs_compat"]
 # Resource-name convention: all shared-namespace resources are prefixed
 # `instafix-`. The Worker-local binding name stays short.
 #
-# KV: post metadata cache, 24h TTL.
-# For production, create via: wrangler kv namespace create instafix-posts-cache
-# and replace the id below. Local `wrangler dev` uses file-backed local KV
-# regardless of the id, so the placeholder is fine for development.
+# KV: post metadata cache, 24h TTL. `scripts/deploy.sh` swaps
+# `dev_local_placeholder` for the real id (from `terraform output`) via sed
+# before calling `wrangler deploy -c`. `wrangler dev` uses file-backed state
+# and ignores the id, so the placeholder is fine locally.
 [[kv_namespaces]]
 binding = "POSTS_CACHE"
-id = "local_placeholder_replace_before_deploy"
+id = "dev_local_placeholder"
 
 # R2: generated grid JPEGs and play-overlay thumbnails. Local dev uses a
 # filesystem-backed stub regardless of bucket_name. Create for real with:
