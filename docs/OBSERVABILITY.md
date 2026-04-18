@@ -127,3 +127,10 @@ Three rules keep log coverage complete as the code evolves:
 1. **Set `c.set('metadata', ...)` before every handler return.** The lifecycle middleware reads `metadata` after `next()` to emit `request.done`. Default is `{ outcome: 'unhandled_error' }` so a thrown handler still logs a meaningful terminal event — but any successful or failed path should refine it.
 2. **Thread `reqId` into every new helper that emits logs.** No AsyncLocalStorage; explicit params. If a helper can be called outside a request context (scheduled task, etc.) accept `reqId: string` so the caller is forced to decide what to pass.
 3. **On failed events, include `stack`.** The `logError(event, reqId, env, err, payload?)` helper in [src/utils/log.ts](../src/utils/log.ts) does this automatically for `error`-level events. For `warn`-level recoverable failures, use inline `try/catch` that extracts `reason` and `stack` manually (see [src/scraper/oembed.ts](../src/scraper/oembed.ts)).
+
+## Counting failures
+
+Two outcome fields can look similar at a glance. To avoid double-counting or missing failures:
+
+- **`outcome: 'compose_failed'`** on `request.done` only fires for **grid** requests where compose throws — those return HTTP 500 to the caller. Thumbnail compose failures emit `outcome: 'ok', source: 'cdn_fallback'` because the caller still gets a working 302 to the raw CDN thumbnail. If you need "total compose failures including the silent-fallback ones," query the `compose.failed` event directly — it fires for both `type: 'grid'` and `type: 'thumbnail'`.
+- **`scraper.br` emits `terminal: false` on `anchor_missing`** because the pipeline continues past it. A single request that recovers via whole-document fallback emits both the `anchor_missing` warning and a later terminal event. Dashboards should filter `terminal != false` when counting BR failure rates.

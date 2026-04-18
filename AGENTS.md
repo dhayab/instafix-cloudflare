@@ -52,6 +52,7 @@ wrangler.toml
 4. **Video CDN URLs expire** (signed with `oe=` timestamp ~6 h out). The 24 h KV cache of `InstaData` means video `URL`s can go stale before the metadata does — `/videos/:id/:n` 302 will then 403 on the CDN side. Accept this; a cache miss re-fetches.
 5. **Photon memory is tight.** Free `PhotonImage` instances immediately after use. Never hold more than one decoded full-size source in RAM at a time.
 6. **Bot detection is substring-based** and case-insensitive. Adding a UA to [src/utils/bot.ts](src/utils/bot.ts) lets that scraper reach the embed HTML; removing one sends it to the 302 redirect.
+7. **The lifecycle logging middleware in [src/index.ts](src/index.ts) MUST remain registered after the trailing-slash rewriter.** The rewriter recursively calls `app.fetch(...)` on the cleaned URL; if logging ran before it, every trailing-slash request would emit two `request.start` / `request.done` pairs. See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) for the full log schema.
 
 ## Upstream services
 
@@ -69,6 +70,16 @@ Convention: every shared-namespace resource (KV namespaces, R2 buckets) is prefi
 | `env.GRIDS`       | `instafix-grids` (R2 bucket)          |
 
 Provisioning is handled by Terraform in [terraform/](terraform/). The KV id is committed into [wrangler.toml](wrangler.toml) (public identifier, not sensitive) so `wrangler deploy` works with no extra tooling. If Terraform ever recreates the namespace, update that one line.
+
+## Logging
+
+See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) for the full event vocabulary. Three rules keep log coverage complete as the code evolves:
+
+1. **Every handler must call `c.set('metadata', { handler, outcome, ... })` before returning.** The lifecycle middleware reads this to emit `request.done`. Default is `{ outcome: 'unhandled_error' }` set at middleware entry, so a thrown handler still produces a meaningful terminal event — but any explicit return path should refine it.
+2. **New helpers that emit logs take `reqId: string` as an explicit parameter.** No AsyncLocalStorage; the correlation ID travels through signatures so callers are forced to decide what to pass.
+3. **Failure events include `reason` and, when available, `stack`.** For `error`-level events (compose failures, unhandled errors), use the `logError` helper in [src/utils/log.ts](src/utils/log.ts). For `warn`-level recoverable failures, use inline `try/catch` with manual `reason`/`stack` extraction — see [src/scraper/oembed.ts](src/scraper/oembed.ts) for the pattern.
+
+The `LOG_LEVEL` env var (`error` | `warn` | `info`, default `info`) gates emission at runtime. It is the kill switch when log volume becomes an incident.
 
 ## Common tasks
 
