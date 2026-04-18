@@ -4,4 +4,5 @@ export interface Env {
   IMAGES?: ImagesBinding;
   CF_ACCOUNT_ID?: string;
   CF_BROWSER_API_TOKEN?: string;
+  BR_DAILY_CAP?: string;
 }

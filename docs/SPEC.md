@@ -107,6 +107,7 @@ interface InstaData {
 | `DEFAULT_WIDTH`, `DEFAULT_HEIGHT` | 400, 400 | [src/handlers/embed.ts](../src/handlers/embed.ts) |
 | `IG_APP_ID` | `936619743392459` | [src/scraper/oembed.ts](../src/scraper/oembed.ts) |
 | `CANVAS_WIDTH_FACTOR`, `TARGET_ROW_HEIGHT`, `MAX_ROW_IMAGES` | 1.5, 1000, 3 | [src/grid/layout.ts](../src/grid/layout.ts) |
+| `BR_DAILY_CAP` | 300 (wrangler.toml `[vars]`) | [src/scraper/br-cap.ts](../src/scraper/br-cap.ts) |
 
 ## Known limitations
 

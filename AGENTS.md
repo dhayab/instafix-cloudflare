@@ -57,7 +57,7 @@ wrangler.toml
 ## Upstream services
 
 - `api.instagram.com/api/v1/oembed` with `X-Ig-App-Id: 936619743392459` — unauthenticated, generous, used for every request
-- Cloudflare Browser Rendering REST `/content` — `CF_ACCOUNT_ID` + `CF_BROWSER_API_TOKEN` secrets required; 10 min/day on Workers Free, 10 h/month on Paid. Missing secrets → scraper silently falls back to oembed-only
+- Cloudflare Browser Rendering REST `/content` — `CF_ACCOUNT_ID` + `CF_BROWSER_API_TOKEN` secrets required; 10 min/day on Workers Free, 10 h/month on Paid. Missing secrets → scraper silently falls back to oembed-only. Per-day call cap in [src/scraper/br-cap.ts](src/scraper/br-cap.ts) (`BR_DAILY_CAP` var, default 300); counter is KV-backed and shares the `POSTS_CACHE` namespace with prefix `br:usage:`
 - `scontent.cdninstagram.com` and siblings — for actual media bytes
 
 ## Cloudflare resource naming

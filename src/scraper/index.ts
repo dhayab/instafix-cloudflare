@@ -38,7 +38,7 @@ export async function getData(
   const existing = inflight.get(key);
   if (existing) return existing;
 
-  const p = scrape(postID, kind, env)
+  const p = scrape(postID, kind, env, ctx)
     .then(async (data) => {
       if (data?.Medias?.length && env.POSTS_CACHE) {
         ctx.waitUntil(
@@ -64,11 +64,12 @@ async function scrape(
   postID: string,
   kind: PostKind,
   env: Env,
+  ctx: ExecutionContext,
 ): Promise<InstaData | null> {
   const normalized = normalizeKind(kind);
   const [oembed, br] = await Promise.all([
     scrapeFromOEmbed(postID),
-    scrapeViaBrowser(postID, normalized, env),
+    scrapeViaBrowser(postID, normalized, env, ctx),
   ]);
 
   if (!oembed && !br) return null;

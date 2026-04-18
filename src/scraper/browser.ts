@@ -1,5 +1,6 @@
 import type { Env } from '../env';
 import type { Media } from './types';
+import { isBROverDailyCap, recordBRCall } from './br-cap';
 
 interface ImageCandidate {
   width?: number;
@@ -141,8 +142,12 @@ async function fetchRenderedHTML(
   postID: string,
   kind: 'reel' | 'tv' | 'p',
   env: Env,
+  ctx: ExecutionContext,
 ): Promise<string | null> {
   if (!env.CF_ACCOUNT_ID || !env.CF_BROWSER_API_TOKEN) return null;
+  if (await isBROverDailyCap(env)) return null;
+
+  recordBRCall(env, ctx);
 
   const postURL = `https://www.instagram.com/${kind}/${encodeURIComponent(postID)}/`;
 
@@ -199,8 +204,9 @@ export async function scrapeViaBrowser(
   postID: string,
   kind: 'reel' | 'tv' | 'p',
   env: Env,
+  ctx: ExecutionContext,
 ): Promise<BRResult | null> {
-  const html = await fetchRenderedHTML(postID, kind, env);
+  const html = await fetchRenderedHTML(postID, kind, env, ctx);
   if (!html) return null;
 
   const anchor = locatePostAnchor(html, postID);
