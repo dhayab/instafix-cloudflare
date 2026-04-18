@@ -81,6 +81,9 @@ export async function getData(
 
   inflight.set(key, p);
   const data = await p;
+  // hasOembed/hasBr here are coarse proxies derived from the merged data;
+  // the authoritative per-source signals are scraper.oembed / scraper.br
+  // events. Known false-negatives include BR results with zero width/height.
   log('scraper.done', reqId, 'info', env, {
     postID,
     kind,
