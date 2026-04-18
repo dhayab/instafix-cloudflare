@@ -5,4 +5,5 @@ export interface Env {
   CF_ACCOUNT_ID?: string;
   CF_BROWSER_API_TOKEN?: string;
   BR_DAILY_CAP?: string;
+  LOG_LEVEL?: string;
 }

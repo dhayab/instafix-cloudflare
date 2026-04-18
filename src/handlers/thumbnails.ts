@@ -1,7 +1,8 @@
 import type { Context } from 'hono';
 import { PhotonImage } from '@cf-wasm/photon';
-import type { Env } from '../env';
+import type { AppBindings } from '../index';
 import { getData } from '../scraper';
+import { logError } from '../utils/log';
 import { drawPlayIcon } from '../grid/play-icon';
 
 const inflight = new Map<string, Promise<Uint8Array>>();
@@ -47,18 +48,36 @@ async function composePlayThumbnail(url: string): Promise<Uint8Array> {
  * gives users a visual cue that the preview still represents a video.
  */
 export async function thumbnailHandler(
-  c: Context<{ Bindings: Env }>,
+  c: Context<AppBindings>,
 ): Promise<Response> {
   const postID = c.req.param('postID') ?? '';
+  const reqId = c.get('reqId');
 
   const key = r2Key(postID);
   if (c.env.GRIDS) {
     const cached = await c.env.GRIDS.get(key);
-    if (cached) return respondJpeg(await cached.arrayBuffer());
+    if (cached) {
+      const bytes = await cached.arrayBuffer();
+      c.set('metadata', {
+        handler: 'thumbnails',
+        outcome: 'ok',
+        postID,
+        source: 'r2_hit',
+        bytes: bytes.byteLength,
+      });
+      return respondJpeg(bytes);
+    }
   }
 
-  const data = await getData(postID, 'p', c.env, c.executionCtx);
-  if (!data?.Thumbnail) return c.notFound();
+  const data = await getData(postID, 'p', c.env, c.executionCtx, reqId);
+  if (!data?.Thumbnail) {
+    c.set('metadata', {
+      handler: 'thumbnails',
+      outcome: 'not_found',
+      postID,
+    });
+    return c.notFound();
+  }
 
   const existing = inflight.get(postID);
   const work =
@@ -71,8 +90,17 @@ export async function thumbnailHandler(
   let jpeg: Uint8Array;
   try {
     jpeg = await work;
-  } catch {
-    // Fallback: redirect to the raw CDN thumbnail if compositing fails.
+  } catch (e) {
+    logError('compose.failed', reqId, c.env, e, {
+      type: 'thumbnail',
+      postID,
+    });
+    c.set('metadata', {
+      handler: 'thumbnails',
+      outcome: 'ok',
+      postID,
+      source: 'cdn_fallback',
+    });
     return c.redirect(data.Thumbnail, 302);
   }
 
@@ -84,5 +112,12 @@ export async function thumbnailHandler(
     );
   }
 
+  c.set('metadata', {
+    handler: 'thumbnails',
+    outcome: 'ok',
+    postID,
+    source: 'composed',
+    bytes: jpeg.byteLength,
+  });
   return respondJpeg(jpeg);
 }

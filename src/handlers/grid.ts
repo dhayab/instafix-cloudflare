@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
-import type { Env } from '../env';
+import type { AppBindings } from '../index';
 import { getData } from '../scraper';
+import { logError } from '../utils/log';
 import { composeGrid, type GridInput } from '../grid/compose';
 
 const inflight = new Map<string, Promise<Uint8Array>>();
@@ -19,19 +20,31 @@ function respondJpeg(bytes: ArrayBuffer | Uint8Array): Response {
   });
 }
 
-export async function gridHandler(
-  c: Context<{ Bindings: Env }>,
-): Promise<Response> {
+export async function gridHandler(c: Context<AppBindings>): Promise<Response> {
   const postID = c.req.param('postID') ?? '';
+  const reqId = c.get('reqId');
 
   const key = r2Key(postID);
   if (c.env.GRIDS) {
     const cached = await c.env.GRIDS.get(key);
-    if (cached) return respondJpeg(await cached.arrayBuffer());
+    if (cached) {
+      const bytes = await cached.arrayBuffer();
+      c.set('metadata', {
+        handler: 'grid',
+        outcome: 'ok',
+        postID,
+        source: 'r2_hit',
+        bytes: bytes.byteLength,
+      });
+      return respondJpeg(bytes);
+    }
   }
 
-  const data = await getData(postID, 'p', c.env, c.executionCtx);
-  if (!data) return c.notFound();
+  const data = await getData(postID, 'p', c.env, c.executionCtx, reqId);
+  if (!data) {
+    c.set('metadata', { handler: 'grid', outcome: 'not_found', postID });
+    return c.notFound();
+  }
 
   const imageItems: GridInput[] = data.Medias.filter((m) =>
     m.TypeName.includes('Image'),
@@ -43,8 +56,18 @@ export async function gridHandler(
     }))
     .filter((i) => i.width > 0 && i.height > 0);
 
-  if (imageItems.length === 0) return c.notFound();
+  if (imageItems.length === 0) {
+    c.set('metadata', { handler: 'grid', outcome: 'not_found', postID });
+    return c.notFound();
+  }
   if (imageItems.length === 1) {
+    c.set('metadata', {
+      handler: 'grid',
+      outcome: 'ok',
+      postID,
+      imageCount: 1,
+      source: 'composed',
+    });
     return c.redirect(`/images/${postID}/1`, 302);
   }
 
@@ -59,7 +82,14 @@ export async function gridHandler(
   let jpeg: Uint8Array;
   try {
     jpeg = await work;
-  } catch {
+  } catch (e) {
+    logError('compose.failed', reqId, c.env, e, { type: 'grid', postID });
+    c.set('metadata', {
+      handler: 'grid',
+      outcome: 'compose_failed',
+      postID,
+      imageCount: imageItems.length,
+    });
     return c.text('grid compose failed', 500);
   }
 
@@ -71,5 +101,13 @@ export async function gridHandler(
     );
   }
 
+  c.set('metadata', {
+    handler: 'grid',
+    outcome: 'ok',
+    postID,
+    imageCount: imageItems.length,
+    source: 'composed',
+    bytes: jpeg.byteLength,
+  });
   return respondJpeg(jpeg);
 }
