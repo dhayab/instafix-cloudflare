@@ -139,17 +139,31 @@ async function probeContentLength(url: string): Promise<number | undefined> {
   }
 }
 
-interface FetchHTMLResult {
-  ok: boolean;
-  html?: string;
-  outcome: 'ok' | 'disabled' | 'skipped_over_cap' | 'failed';
-  type?: 'fetch' | 'http' | 'response_invalid';
-  status?: number;
-  reason?: string;
-  stack?: string;
-  capCount?: number;
-  cap?: number;
-}
+type FetchHTMLResult =
+  | {
+      ok: true;
+      html: string;
+      outcome: 'ok';
+      capCount: number;
+      cap: number;
+    }
+  | { ok: false; outcome: 'disabled' }
+  | {
+      ok: false;
+      outcome: 'skipped_over_cap';
+      capCount: number;
+      cap: number;
+    }
+  | {
+      ok: false;
+      outcome: 'failed';
+      type: 'fetch' | 'http' | 'response_invalid';
+      status?: number;
+      reason?: string;
+      stack?: string;
+      capCount: number;
+      cap: number;
+    };
 
 async function fetchRenderedHTML(
   postID: string,
@@ -281,17 +295,22 @@ export async function scrapeViaBrowser(
 
   if (!fetched.ok) {
     const level = fetched.outcome === 'disabled' ? 'info' : 'warn';
-    log('scraper.br', reqId, level, env, {
+    const payload: Record<string, unknown> = {
       postID,
       outcome: fetched.outcome,
-      type: fetched.type,
-      status: fetched.status,
-      capCount: fetched.capCount,
-      cap: fetched.cap,
       durationMs: Date.now() - started,
-      reason: fetched.reason,
-      stack: fetched.stack,
-    });
+    };
+    if (fetched.outcome !== 'disabled') {
+      payload.capCount = fetched.capCount;
+      payload.cap = fetched.cap;
+    }
+    if (fetched.outcome === 'failed') {
+      payload.type = fetched.type;
+      payload.status = fetched.status;
+      payload.reason = fetched.reason;
+      payload.stack = fetched.stack;
+    }
+    log('scraper.br', reqId, level, env, payload);
     if (fetched.outcome === 'skipped_over_cap') {
       log('br.cap.over', reqId, 'warn', env, {
         count: fetched.capCount,
@@ -301,13 +320,14 @@ export async function scrapeViaBrowser(
     return null;
   }
 
-  const html = fetched.html!;
+  const html = fetched.html;
   const anchor = locatePostAnchor(html, postID);
   if (anchor === 0) {
     log('scraper.br', reqId, 'warn', env, {
       postID,
       outcome: 'failed',
       type: 'anchor_missing',
+      terminal: false,
       capCount: fetched.capCount,
       cap: fetched.cap,
       durationMs: Date.now() - started,
