@@ -8,6 +8,7 @@ Every event is a single-line JSON object with at least:
 
 | Field | Type | Notes |
 | --- | --- | --- |
+| `message` | string | Short human-readable preview, e.g. `[scraper.br] ok carousel 5 900ms`. Derived from a handful of payload fields; `request.*` events sit at indent 0, everything else at 2 spaces so the request boundary is visible when tailing logs. Populates Cloudflare Workers Observability's default `message` column. |
 | `event` | string | Hierarchical name, e.g. `scraper.br` |
 | `level` | `"info" \| "warn" \| "error"` | Also selects which `console.*` method emits it |
 | `reqId` | string | Correlation ID (CF `cf-ray` header, or a UUID fallback) |
