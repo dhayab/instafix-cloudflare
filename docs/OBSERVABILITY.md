@@ -62,11 +62,13 @@ Handler-specific `metadata` fields on `request.done`:
 | --- | --- | --- |
 | `scraper.done` | info | `postID`, `kind`, `source: "cache" \| "scrape"`, `coalesced`, `mediaCount`, `hasOembed`, `hasBr`, `durationMs` |
 | `scraper.oembed` | info/warn | `postID`, `outcome: "ok" \| "failed"`, `type?: "fetch" \| "http" \| "parse" \| "incomplete"`, `status?`, `durationMs`, `reason?`, `stack?` |
-| `scraper.br` | info/warn | `postID`, `outcome: "ok" \| "disabled" \| "skipped_over_cap" \| "failed"`, `type?: "fetch" \| "http" \| "response_invalid" \| "anchor_missing" \| "carousel_parse" \| "video_parse" \| "no_match" \| "probe"`, `shape?: "carousel" \| "video"`, `status?`, `mediaCount?`, `capCount?`, `cap?`, `durationMs`, `reason?`, `stack?` |
+| `scraper.br` | info/warn | `postID`, `outcome: "ok" \| "disabled" \| "skipped_over_cap" \| "failed"`, `type?: "fetch" \| "http" \| "response_invalid" \| "anchor_missing" \| "carousel_parse" \| "video_parse" \| "no_match" \| "probe"`, `shape?: "carousel" \| "video"`, `status?`, `mediaCount?`, `capCount?`, `cap?`, `durationMs`, `reason?`, `stack?`, `terminal?` |
 
 On cache hit, only `scraper.done` fires (with `source: "cache"`); `scraper.oembed` and `scraper.br` are absent. Their absence _is_ the signal that the request was served from KV.
 
 `coalesced: true` means the request joined an in-flight scrape via the per-isolate singleflight Map — see [src/scraper/index.ts](../src/scraper/index.ts).
+
+`terminal: false` on a `scraper.br` failure indicates the pipeline is continuing past it (currently only `type: "anchor_missing"`). Dashboards counting failure rates should filter `terminal != false` to avoid double-counting soft signals.
 
 ### BR daily cap ([src/scraper/br-cap.ts](../src/scraper/br-cap.ts))
 
