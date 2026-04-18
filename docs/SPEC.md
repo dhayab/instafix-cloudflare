@@ -106,6 +106,7 @@ interface InstaData {
 | `IG_APP_ID` | `936619743392459` | [src/scraper/oembed.ts](../src/scraper/oembed.ts) |
 | `CANVAS_WIDTH_FACTOR`, `TARGET_ROW_HEIGHT`, `MAX_ROW_IMAGES` | 1.5, 1000, 3 | [src/grid/layout.ts](../src/grid/layout.ts) |
 | `BR_DAILY_CAP` | 300 (wrangler.toml `[vars]`) | [src/scraper/br-cap.ts](../src/scraper/br-cap.ts) |
+| `LOG_LEVEL` | `error` \| `warn` \| `info`; default `info` (wrangler.toml `[vars]`) | [src/utils/log.ts](../src/utils/log.ts) — runtime gate for structured JSON logs; see [docs/OBSERVABILITY.md](OBSERVABILITY.md) |
 
 ## Known limitations
 

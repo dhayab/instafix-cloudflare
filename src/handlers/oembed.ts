@@ -5,7 +5,11 @@ export function oembedHandler(c: Context<AppBindings>): Response {
   const text = c.req.query('text');
   const url = c.req.query('url');
   if (!text || !url) {
-    c.set('metadata', { handler: 'oembed', outcome: 'invalid_input' });
+    c.set('metadata', {
+      handler: 'oembed',
+      outcome: 'invalid_input',
+      invalidReason: 'missing_params',
+    });
     return new Response(null, { status: 204 });
   }
 

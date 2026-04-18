@@ -25,7 +25,7 @@ The `LOG_LEVEL` env var (`error` | `warn` | `info`, default `info`) gates emissi
 
 ## Correlation
 
-A Hono middleware assigns `reqId` once per request, preferring the `cf-ray` header (unique per edge request, also visible in CF's own request log) and falling back to `crypto.randomUUID()` when absent (`wrangler dev`). Helpers outside the Hono context (`src/scraper/*`, `src/utils/share.ts`) receive `reqId` as an explicit parameter.
+A Hono middleware assigns `reqId` once per request, preferring the `cf-ray` header (unique per edge request, also visible in CF's own request log) and falling back to `crypto.randomUUID()` when absent (`wrangler dev`). Helpers outside the Hono context (`src/scraper/*`) receive `reqId` as an explicit parameter.
 
 ## Event vocabulary
 
@@ -42,7 +42,7 @@ A Hono middleware assigns `reqId` once per request, preferring the `cf-ray` head
 - `bot_redirect` — non-bot UA on an embed route; 302 to instagram.com.
 - `direct_redirect` — `?direct=true` or `X-Embed-Type: direct`.
 - `not_found` — 404 (missing media, missing data).
-- `invalid_input` — unparseable `mediaNum`, bad postID, share/stories resolution failed. When this fires, an `invalidReason` field is set: `mediaNum` | `postID` | `share_unresolvable` | `stories_decode`.
+- `invalid_input` — unparseable `mediaNum`, bad postID, share/stories resolution failed, or required oembed query params absent. When this fires, an `invalidReason` field is set: `mediaNum` | `postID` | `share_unresolvable` | `stories_decode` | `missing_params`.
 - `out_of_range` — `mediaNum` exceeds carousel length.
 - `scrape_failed` — `getData` threw or returned null; caller falls back to a redirect.
 - `compose_failed` — Photon compose threw; handler returns 5xx (grid) or falls back (thumbnail).
@@ -62,7 +62,7 @@ Handler-specific `metadata` fields on `request.done`:
 | --- | --- | --- |
 | `scraper.done` | info | `postID`, `kind`, `source: "cache" \| "scrape"`, `coalesced`, `mediaCount`, `hasOembed`, `hasBr`, `durationMs` |
 | `scraper.oembed` | info/warn | `postID`, `outcome: "ok" \| "failed"`, `type?: "fetch" \| "http" \| "parse" \| "incomplete"`, `status?`, `durationMs`, `reason?`, `stack?` |
-| `scraper.br` | info/warn | `postID`, `outcome: "ok" \| "disabled" \| "skipped_over_cap" \| "failed"`, `type?: "fetch" \| "http" \| "response_invalid" \| "anchor_missing" \| "carousel_parse" \| "video_parse" \| "no_match" \| "probe"`, `shape?: "carousel" \| "video"`, `status?`, `mediaCount?`, `capCount?`, `cap?`, `durationMs`, `reason?`, `stack?`, `terminal?` |
+| `scraper.br` | info/warn | `postID`, `outcome: "ok" \| "disabled" \| "skipped_over_cap" \| "failed"`, `type?: "fetch" \| "http" \| "response_invalid" \| "anchor_missing" \| "carousel_parse" \| "video_parse" \| "no_match"`, `shape?: "carousel" \| "video"`, `status?`, `mediaCount?`, `capCount?`, `cap?`, `durationMs`, `reason?`, `stack?`, `terminal?` |
 
 On cache hit, only `scraper.done` fires (with `source: "cache"`); `scraper.oembed` and `scraper.br` are absent. Their absence _is_ the signal that the request was served from KV.
 
