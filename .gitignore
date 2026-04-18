@@ -1,0 +1,14 @@
+node_modules
+dist
+.wrangler
+coverage
+
+.dev.vars
+.env
+.env.local
+
+.claude/settings.local.json
+.vscode/settings.json
+
+*.log
+.DS_Store

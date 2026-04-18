@@ -1,0 +1,33 @@
+name = "instafix"
+main = "src/index.ts"
+compatibility_date = "2026-04-18"
+compatibility_flags = ["nodejs_compat"]
+
+# Resource-name convention: all shared-namespace resources are prefixed
+# `instafix-`. The Worker-local binding name stays short.
+#
+# KV: post metadata cache, 24h TTL.
+# For production, create via: wrangler kv namespace create instafix-posts-cache
+# and replace the id below. Local `wrangler dev` uses file-backed local KV
+# regardless of the id, so the placeholder is fine for development.
+[[kv_namespaces]]
+binding = "POSTS_CACHE"
+id = "local_placeholder_replace_before_deploy"
+
+# R2: generated grid JPEGs and play-overlay thumbnails. Local dev uses a
+# filesystem-backed stub regardless of bucket_name. Create for real with:
+# wrangler r2 bucket create instafix-grids
+[[r2_buckets]]
+binding = "GRIDS"
+bucket_name = "instafix-grids"
+
+# Cloudflare Images binding (reserved for future offload; Photon is primary)
+# [images]
+# binding = "IMAGES"
+
+# Secrets (set via `wrangler secret put`):
+#   CF_ACCOUNT_ID          — for Browser Rendering /content fallback
+#   CF_BROWSER_API_TOKEN   — Bearer token, scope: "Browser Rendering - Edit"
+
+[observability]
+enabled = true
