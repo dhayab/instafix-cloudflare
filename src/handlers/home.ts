@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import type { AppBindings } from '../index';
 
 const HOME_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -44,7 +45,8 @@ const HOME_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export function homeHandler(c: Context): Response {
+export function homeHandler(c: Context<AppBindings>): Response {
+  c.set('metadata', { handler: 'home', outcome: 'ok' });
   return c.html(HOME_HTML, 200, {
     'Cache-Control': 'public, max-age=86400, immutable',
   });

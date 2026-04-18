@@ -21,7 +21,6 @@ function kindFromPath(path: string): PostKind {
   if (path.startsWith('/reels/')) return 'reels';
   if (path.startsWith('/tv/')) return 'tv';
   if (path.startsWith('/stories/') || path.startsWith('/p/')) return 'p';
-  // /{username}/reel/... or /{username}/p/... fall here
   if (path.includes('/reel/')) return 'reel';
   if (path.includes('/reels/')) return 'reels';
   return 'p';
@@ -32,6 +31,7 @@ function sendEmbed(c: Context<AppBindings>, v: ViewsData): Response {
 }
 
 export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
+  const reqId = c.get('reqId');
   const url = new URL(c.req.url);
   const urlPath = url.pathname;
   const mediaNumParam =
@@ -52,6 +52,11 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
 
   if (!Number.isFinite(mediaNum)) {
     view.Description = 'Invalid img_index parameter';
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'invalid_input',
+      invalidReason: 'mediaNum',
+    });
     return sendEmbed(c, view);
   }
 
@@ -68,6 +73,11 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
       postID = mediaIdToCode(BigInt(postID));
     } catch {
       view.Description = 'Invalid postID';
+      c.set('metadata', {
+        handler: 'embed',
+        outcome: 'invalid_input',
+        invalidReason: 'stories_decode',
+      });
       return sendEmbed(c, view);
     }
   } else if (urlPath.startsWith('/share/')) {
@@ -75,6 +85,11 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
       postID = await getSharePostID(postID);
     } catch {
       view.Description = 'Failed to get new postID from share URL';
+      c.set('metadata', {
+        handler: 'embed',
+        outcome: 'invalid_input',
+        invalidReason: 'share_unresolvable',
+      });
       return sendEmbed(c, view);
     }
   }
@@ -86,25 +101,55 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
   view.URL = canonical;
 
   if (!isBot(c.req.header('User-Agent'))) {
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'bot_redirect',
+      postID,
+      kind,
+    });
     return c.redirect(canonical, 302);
   }
 
-  const reqId = c.get('reqId');
   let data;
   try {
     data = await getData(postID, kind, c.env, c.executionCtx, reqId);
   } catch {
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'scrape_failed',
+      postID,
+      kind,
+    });
     return c.redirect(canonical, 302);
   }
   if (!data || data.Medias.length === 0) {
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'scrape_failed',
+      postID,
+      kind,
+    });
     return c.redirect(canonical, 302);
   }
   if (mediaNum > data.Medias.length) {
     view.Description = 'Media number out of range';
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'out_of_range',
+      postID,
+      kind,
+      mediaNum,
+    });
     return sendEmbed(c, view);
   }
   if (!data.Username) {
     view.Description = 'Post not found';
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'not_found',
+      postID,
+      kind,
+    });
     return sendEmbed(c, view);
   }
 
@@ -119,6 +164,13 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
   const item = data.Medias[idx];
   if (!item) {
     view.Description = 'Media number out of range';
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'out_of_range',
+      postID,
+      kind,
+      mediaNum,
+    });
     return sendEmbed(c, view);
   }
 
@@ -126,25 +178,35 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
   const isImage = typename.includes('Image') || typename.includes('StoryVideo');
 
   let targetPath = '';
+  let card = '';
+  let hasVideo = false;
+  let fallback: string | undefined;
+
   if (mediaNum === 0 && isImage && data.Medias.length > 1) {
-    view.Card = 'summary_large_image';
+    card = 'summary_large_image';
+    view.Card = card;
     targetPath = `/grid/${postID}`;
     view.ImageURL = targetPath;
   } else if (isImage) {
-    view.Card = 'summary_large_image';
+    card = 'summary_large_image';
+    view.Card = card;
     targetPath = `/images/${postID}/${Math.max(1, mediaNum)}`;
     view.ImageURL = targetPath;
   } else {
     const tooLarge = (item.ContentLength ?? 0) > TELEGRAM_VIDEO_SIZE_LIMIT;
     if (tooLarge && data.Thumbnail) {
       // Downgrade to a thumbnail card with play-icon overlay.
-      view.Card = 'summary_large_image';
+      card = 'summary_large_image';
+      view.Card = card;
       targetPath = `/thumbnails/${postID}`;
       view.ImageURL = targetPath;
+      fallback = 'thumbnail_card';
     } else {
-      view.Card = 'player';
+      card = 'player';
+      view.Card = card;
       targetPath = `/videos/${postID}/${Math.max(1, mediaNum)}`;
       view.VideoURL = targetPath;
+      hasVideo = true;
       if (data.Thumbnail) view.ImageURL = `/thumbnails/${postID}`;
       const host = url.host;
       const scheme = url.protocol.replace(':', '');
@@ -152,7 +214,29 @@ export async function embedHandler(c: Context<AppBindings>): Promise<Response> {
     }
   }
 
-  if (isDirect) return c.redirect(targetPath, 302);
+  if (isDirect) {
+    c.set('metadata', {
+      handler: 'embed',
+      outcome: 'direct_redirect',
+      postID,
+      kind,
+      mediaNum,
+      card,
+      hasVideo,
+      fallback,
+    });
+    return c.redirect(targetPath, 302);
+  }
 
+  c.set('metadata', {
+    handler: 'embed',
+    outcome: 'ok',
+    postID,
+    kind,
+    mediaNum,
+    card,
+    hasVideo,
+    fallback,
+  });
   return sendEmbed(c, view);
 }
