@@ -1,4 +1,5 @@
 import type { Env } from '../env';
+import { log } from '../utils/log';
 
 const DEFAULT_CAP = 300;
 const COUNTER_TTL_SECONDS = 48 * 60 * 60;
@@ -18,22 +19,38 @@ function getCap(env: Env): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_CAP;
 }
 
+export interface BRCapState {
+  over: boolean;
+  count: number;
+  cap: number;
+}
+
 /**
  * Fail-open: if the KV read errors, allow the BR call. This is a cost
  * safety net, not a hard gate — Cloudflare billing alerts catch the real
- * runaway. Returning `true` here would degrade the user experience for
- * transient KV flakiness.
+ * runaway. Returning `over: true` here would degrade the user experience
+ * for transient KV flakiness.
  */
-export async function isBROverDailyCap(env: Env): Promise<boolean> {
-  if (!env.POSTS_CACHE) return false;
+export async function getBRCapState(
+  env: Env,
+  reqId: string,
+): Promise<BRCapState> {
+  const cap = getCap(env);
+  if (!env.POSTS_CACHE) return { over: false, count: 0, cap };
   try {
     const raw = await env.POSTS_CACHE.get(dayKey());
-    if (!raw) return false;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return false;
-    return n >= getCap(env);
-  } catch {
-    return false;
+    const count = raw ? Number(raw) : 0;
+    const safe = Number.isFinite(count) ? count : 0;
+    return { over: safe >= cap, count: safe, cap };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
+    log('br.cap.counter_failed', reqId, 'warn', env, {
+      type: 'read',
+      reason,
+      stack,
+    });
+    return { over: false, count: 0, cap };
   }
 }
 
@@ -42,7 +59,11 @@ export async function isBROverDailyCap(env: Env): Promise<boolean> {
  * acceptable — the cap is approximate. Fired through `ctx.waitUntil` so the
  * main response isn't blocked on the KV round-trip.
  */
-export function recordBRCall(env: Env, ctx: ExecutionContext): void {
+export function recordBRCall(
+  env: Env,
+  ctx: ExecutionContext,
+  reqId: string,
+): void {
   if (!env.POSTS_CACHE) return;
   const kv = env.POSTS_CACHE;
   const key = dayKey();
@@ -55,8 +76,14 @@ export function recordBRCall(env: Env, ctx: ExecutionContext): void {
         await kv.put(key, String(next), {
           expirationTtl: COUNTER_TTL_SECONDS,
         });
-      } catch {
-        // Approximate cap; swallow errors.
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        const stack = e instanceof Error ? e.stack : undefined;
+        log('br.cap.counter_failed', reqId, 'warn', env, {
+          type: 'write',
+          reason,
+          stack,
+        });
       }
     })(),
   );
