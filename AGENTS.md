@@ -35,7 +35,6 @@ src/
 └── utils/            # Bot detection, HTML escape, shortcode, share-URL unwrap
 docs/                 # ARCHITECTURE.md, SPEC.md
 terraform/            # KV namespace + R2 bucket provisioning
-scripts/deploy.sh     # terraform output → env vars → wrangler deploy
 wrangler.toml
 ```
 
@@ -69,7 +68,7 @@ Convention: every shared-namespace resource (KV namespaces, R2 buckets) is prefi
 | `env.POSTS_CACHE` | `instafix-posts-cache` (KV namespace) |
 | `env.GRIDS`       | `instafix-grids` (R2 bucket)          |
 
-Provisioning is handled by Terraform in [terraform/](terraform/). [scripts/deploy.sh](scripts/deploy.sh) reads `terraform output`, `sed`-swaps the real KV id in for `dev_local_placeholder` in [wrangler.toml](wrangler.toml), and runs `wrangler deploy -c` against a generated `wrangler.deploy.toml` at the repo root (gitignored, auto-cleaned).
+Provisioning is handled by Terraform in [terraform/](terraform/). The KV id is committed into [wrangler.toml](wrangler.toml) (public identifier, not sensitive) so `wrangler deploy` works with no extra tooling. If Terraform ever recreates the namespace, update that one line.
 
 ## Common tasks
 

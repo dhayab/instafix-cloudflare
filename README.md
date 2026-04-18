@@ -23,7 +23,7 @@ See [docs/SPEC.md](docs/SPEC.md) for the full route contract, username-prefixed 
 
 ## Deploy
 
-Infrastructure (KV namespace, R2 bucket) is managed by Terraform; the Worker code is shipped via Wrangler. `npm run deploy` wires them together: it reads `terraform output`, exports each value as an env var, and hands off to `wrangler deploy`.
+Infrastructure (KV namespace, R2 bucket) is managed by Terraform; the Worker code ships via Wrangler. The KV namespace id is committed into [wrangler.toml](wrangler.toml) so `wrangler deploy` runs standalone — no templating step, works with Cloudflare's Workers Builds / Git integration out of the box.
 
 ### One-time setup
 
@@ -37,6 +37,9 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 
 cd terraform && terraform init && terraform apply && cd ..
 
+# copy the `posts_cache_kv_id` output into wrangler.toml's
+# [[kv_namespaces]].id if it differs from the committed value.
+
 # 2. Browser Rendering secrets (Worker runtime, not Terraform-managed)
 wrangler secret put CF_ACCOUNT_ID
 wrangler secret put CF_BROWSER_API_TOKEN   # scope: "Browser Rendering - Edit"
@@ -49,6 +52,8 @@ wrangler secret put CF_BROWSER_API_TOKEN   # scope: "Browser Rendering - Edit"
 ```bash
 npm run deploy
 ```
+
+Or connect the repo via the Cloudflare dashboard (Workers → your worker → Settings → Git integration) for auto-deploy on push.
 
 Point your domain at the Worker via the Cloudflare dashboard (Workers Routes or a custom domain). No additional DNS work is needed if you use a `*.workers.dev` subdomain.
 

@@ -61,9 +61,7 @@ Declared in [wrangler.toml](../wrangler.toml). Convention: every shared-namespac
 | `GRIDS` | R2 bucket | `instafix-grids` | `grids/{id}.jpg` + `thumbnails/{id}-play.jpg`, 30-day lifecycle |
 | `IMAGES` | Cloudflare Images | — | Reserved for future offload; currently unused |
 
-Both resources are provisioned by Terraform ([terraform/](../terraform/)). `scripts/deploy.sh` reads `terraform output`, templates the real KV id into a generated `wrangler.deploy.toml` at the repo root (`dev_local_placeholder` → real id via `sed`, gitignored, auto-cleaned), and passes it to `wrangler deploy -c`.
-
-Local dev uses file-backed state under `.wrangler/state/…` regardless of the id, so `wrangler dev` runs against the placeholder unchanged.
+Both resources are provisioned by Terraform ([terraform/](../terraform/)). The KV id is committed into [wrangler.toml](../wrangler.toml) (public identifier, not sensitive) so `wrangler deploy` ships the Worker with no templating step. Local dev uses file-backed state under `.wrangler/state/…` regardless of the id.
 
 ## Secrets
 
